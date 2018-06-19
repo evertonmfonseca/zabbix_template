@@ -1,0 +1,144 @@
+#!/usr/bin/env ruby
+
+=begin
+Script: rbl.check
+Version: 1.0
+Author: Jean-Jacques Martrès (jjmartres |at| gmail |dot| com)
+Description: This script queries DNS Blacklists for listings
+License: GPL2
+
+This script is intended for use with Zabbix > 2.0
+
+Supported RBLs are :
+  VIRBL               =>     virbl.dnsbl.bit.nl
+  SPAMHAUS            =>     zen.spamhaus.org
+  URIBL               =>     multi.uribl.com
+  SURBL               =>     multi.surbl.org
+  NJABL               =>     dnsbl.njabl.org
+  SPAMCOP             =>     bl.spamcop.net
+  SORBS               =>     dnsbl.sorbs.net
+  DRONEBL             =>     dnsbl.dronebl.org
+  BARRACUDA           =>     b.barracudacentral.org
+  DRONE_ABUSE_CH      =>     drone.abuse.ch
+  HTTPBL_ABUSE_CH     =>     httpbl.abuse.ch
+  SPAM_ABUSE_CH       =>     spam.abuse.ch
+  MAILSHELL           =>     dnsbl.mailshell.net
+  CBL                 =>     cbl.abuseat.org
+  FIVETENSG           =>     blackholes.five-ten-sg.com
+  INPS                =>     dnsbl.inps.de
+  MANITU              =>     ix.dnsbl.manitu.net
+  NOMOREFUN           =>     no-more-funn.moensted.dk
+  SPAMCANNIBAL        =>     bl.spamcannibal.org
+  UCEPROTECT1         =>     dnsbl-1.uceprotect.net
+  UCEPROTECT2         =>     dnsbl-2.uceprotect.net
+  UCEPROTECT3         =>     dnsbl-3.uceprotect.net
+  WHITELIST           =>     ips.whitelisted.org
+  BACKSCATTERER       =>     ips.backscatterer.org
+  PROJECTHONEYPOT     =>     dnsbl.httpbl.org
+  TOREXITNODE         =>     torexit.dan.me.uk
+  UNSUBSCORE          =>     ubl.unsubscore.com
+  DYNA_SPAMRATS       =>     dyna.spamrats.com
+  NOPTR_SPAMRATS      =>     noptr.spamrats.com
+  SPAM_SPAMRATS       =>     spam.spamrats.com
+  CBL_ANTISPAM_ORG_CN =>     cbl.anti-spam.org.cn
+  CDL_ANTISPAM_ORG_CN =>     cdl.anti-spam.org.cn
+  SURRIEL             =>     psbl.surriel.com
+  SPAMLAB             =>     rbl.spamlab.com
+  BOGONS_CYMRU        =>     bogons.cymru.com
+  RFC-IGNORANT        =>     dsn.bl.rfc-ignorant.de
+
+USAGE:
+  as a script:          rbl.check [options]
+  as an item:           rbl.check["-q","RBLS|IP_ADDRESS"]
+
+OPTIONS
+     -h, --help                       Display this help message
+     -q, --query Flag                 Flag: RBLS or IP_ADDRESS
+=end
+require 'rubygems'
+require 'optparse'
+require 'dnsbl/client'
+
+version="0.1.1"
+
+# Howto use it..quiet simple
+OPTIONS = {}
+mandatory_options=[:query]
+optparse = OptionParser.new do |opts|
+  opts.banner = "Usage: #{$0} [options]"
+  opts.separator ""
+  opts.separator "Options"
+  opts.on("-h", "--help", "Display this help message") do
+    puts opts
+    exit(-1)
+  end
+  opts.on('-q', '--query FLAG', String, 'Flag: RBLS|IP_ADDRESS') { |v| OPTIONS[:query] = v }
+  opts.separator ""
+end
+
+# Show usage when no args pass
+if ARGV.empty?
+  puts optparse
+  exit(-1)
+end
+
+# Validate that mandatory parameters are specified
+begin
+  optparse.parse!(ARGV)
+  missing = mandatory_options.select{|p| OPTIONS[p].nil? }
+  if not missing.empty?
+    puts "Missing options: #{missing.join(', ')}"
+    puts optparse
+    exit(-1)
+  end
+  rescue OptionParser::ParseError,OptionParser::InvalidArgument,OptionParser::InvalidOption
+       puts $!.to_s
+       exit(-1)
+end
+
+# Rewrite dnsbls function
+module DNSBL
+  class Client
+    def dnsbls
+      @dnsbls
+    end
+  end
+end
+
+# Initialize
+c = DNSBL::Client.new
+
+# Add more RBL server
+c.add_dnsbl("UNSUBSCORE", "ubl.unsubscore.com",'ip',{"0"=>"OK","127.0.0.2"=>"Blacklisted"})
+c.add_dnsbl("DYNA_SPAMRATS","dyna.spamrats.com",'ip',{"0"=>"OK","127.0.0.36"=>"Blacklisted"})
+c.add_dnsbl("NOPTR_SPAMRATS","noptr.spamrats.com",'ip',{"0"=>"OK","127.0.0.37"=>"Blacklisted"})
+c.add_dnsbl("SPAM_SPAMRATS","spam.spamrats.com",'ip',{"0"=>"OK","127.0.0.38"=>"Blacklisted"})
+c.add_dnsbl("CBL_ANTISPAM_ORG_CN","cbl.anti-spam.org.cn",'ip',{"0"=>"OK","127.0.8.2"=>"Blacklisted"})
+c.add_dnsbl("CDL_ANTISPAM_ORG_CN","cdl.anti-spam.org.cn",'ip',{"0"=>"OK","127.0.8.4"=>"Blacklisted"})
+c.add_dnsbl("SURRIEL","psbl.surriel.com",'ip',{"0"=>"OK","127.0.0.2"=>"Blacklisted"})
+c.add_dnsbl("SPAMLAB","rbl.spamlab.com",'ip',{"0"=>"OK","127.0.0.2"=>"Blacklisted"})
+c.add_dnsbl("BOGONS_CYMRU","bogons.cymru.com",'ip',{"0"=>"OK","127.0.0.2"=>"Blacklisted"})
+c.add_dnsbl("RFC-IGNORANT","dsn.bl.rfc-ignorant.de",'ip',{"0"=>"OK","127.0.0.2"=>"Blacklisted"})
+
+# Create @RBLs list
+@rbls = c.dnsbls
+
+case OPTIONS[:query].upcase
+# List @RBLs
+when "RBLS"
+  @rbls.keys.each { |key| puts "#{key} => #{@rbls[key]['domain']}" }
+  exit(-1)
+# Lookup @RBLs for the specified IP address
+when /^([01]?\d\d?|2[0-4]\d|25[0-5])\.([01]?\d\d?|2[0-4]\d|25[0-5])\.([01]?\d\d?|2[0-4]\d|25[0-5])\.([01]?\d\d?|2[0-4]\d|25[0-5])$/
+  lookup = c.lookup(OPTIONS[:query])
+  message = ""
+  if lookup.empty?
+    message = message + "Not listed"
+  else
+    lookup.each_with_index { |obj, index| message = message + "#{obj.dnsbl} (#{@rbls[obj.dnsbl]['domain']})\n" }
+  end
+  puts message
+  exit(-1)
+else
+  exit(-1)
+end

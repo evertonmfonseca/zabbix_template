@@ -1,0 +1,78 @@
+#!/usr/bin/env ruby
+
+=begin
+Script: if.count
+Version: 1.0
+Author: Jean-Jacques Martrès (jjmartres |at| gmail |dot| com)
+Description: This script query ifType and count interface matching a regexp
+License: GPL2
+
+This script is intended for use with Zabbix > 2.0
+
+USAGE:
+  as a script:    if.count [options]
+  as an item:     if.count["-d","IP_ADDRESS","-c","SNMP_COMMUNITY","-r","REGEXP"]
+
+OPTIONS
+    -h, --help                       Display this help message
+    -d, --device IP_ADDRESS          Device IP address discovered by Zabbix
+    -c, --community SNMP_COMMUNITY   SNMP community used for the device
+    -r, --regex REGEX                Interface regexp
+=end
+require 'rubygems'
+require 'optparse'
+require 'snmp'
+
+version="0.0.1"
+
+# Howto use it..quiet simple
+OPTIONS = {}
+mandatory_options=[:deviceip, :community, :regex]
+optparse = OptionParser.new do |opts|
+  opts.banner = "Usage: #{$0} [options]"
+  opts.separator ""
+  opts.separator "Options"
+  opts.on("-h", "--help", "Display this help message") do
+    puts opts
+    exit(-1)
+  end
+  opts.on('-d', '--device IP_ADDRESS', String, 'Device IP address discovered by Zabbix') { |v| OPTIONS[:deviceip] = v }
+  opts.on('-c', '--community SNMP_COMMUNITY',String, 'SNMP community used for the device') { |v| OPTIONS[:community] = v }
+  opts.on('-r', '--regex REGEX', String, 'Interface regexp') { |v| OPTIONS[:regex] = v }
+  opts.separator ""
+end
+
+# Show usage when no args pass
+if ARGV.empty?
+  puts optparse
+  exit(-1)
+end
+
+# Validate that mandatory parameters are specified
+begin
+  optparse.parse!(ARGV)
+  missing = mandatory_options.select{|p| OPTIONS[p].nil? }
+  if not missing.empty?
+    puts "Missing options: #{missing.join(', ')}"
+    puts optparse
+    exit(-1)
+  end
+  rescue OptionParser::ParseError,OptionParser::InvalidArgument,OptionParser::InvalidOption
+       puts $!.to_s
+       exit(-1)
+end
+
+# Query SNMP OID ifName
+if_table_columns = ["ifName"]
+count = 0
+SNMP::Manager.open(:host => OPTIONS[:deviceip], :community => OPTIONS[:community], :version => :SNMPv2c) do |manager|
+ manager.walk(if_table_columns) do |row|
+  row.each do |vb|
+   if vb.value.match(OPTIONS[:regex])
+    count = count + 1
+   end
+  end
+ end
+end
+puts count if count > 0
+exit(-1)

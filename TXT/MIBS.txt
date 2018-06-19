@@ -1,0 +1,13 @@
+How to enable contrib and non-free repositories in Debian
+As ‘root’ you need to edit /etc/apt/sources.lst
+
+Then add ‘contrib’ and ‘non free’ at the end of each line that begins with “deb” and “deb-src” just like the example:
+
+deb http://http.us.debian.org/debian squeeze main contrib non-free
+deb http://security.debian.org squeeze/updates main contrib non-free
+
+Updating SNMP and Downloading All MIBS
+To get back you missing MIBs perform an apt-get update and follow the instructions below:
+
+% apt-get install snmp
+% apt-get install snmp-mibs-downloader
